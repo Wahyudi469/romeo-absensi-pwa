@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Absensi Romeo</title>
+  <meta name="theme-color" content="#3498db"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #ecf0f1;
+    }
+
+    h2 {
+      color: #2c3e50;
+      text-align: center;
+    }
+
+    input, select, button {
+      padding: 10px;
+      margin: 8px 0;
+      width: 100%;
+      font-size: 16px;
+      border: 1px solid #bdc3c7;
+      border-radius: 10px;
+      box-sizing: border-box;
+    }
+
+    .form-section {
+      background: #ffffff;
+      border-radius: 15px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .absen-card {
+      background: #ffffff;
+      border-left: 5px solid #3498db;
+      border-radius: 10px;
+      padding: 15px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      margin-bottom: 15px;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 10px;
+      margin-top: 10px;
+    }
+
+    button {
+      background: #3498db;
+      color: white;
+      font-weight: bold;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    button:hover {
+      background: #2980b9;
+    }
+
+    .delete-btn {
+      background: #e74c3c;
+      margin-top: 10px;
+    }
+
+    .export-buttons {
+      text-align: center;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Form Absen Masuk</h2>
+  <div class="form-section">
+    <label>Tanggal:</label>
+    <input type="date" id="tanggalMasuk" />
+    <label>Jam Masuk:</label>
+    <select id="jamMasuk">
+      <option value="06:00">06.00</option>
+      <option value="07:00">07.00</option>
+      <option value="08:00">08.00</option>
+      <option value="09:00">09.00</option>
+      <option value="20:00">20.00</option>
+    </select>
+    <label>Foto Masuk:</label>
+    <input type="file" id="fotoMasuk" accept="image/*" capture="environment" />
+    <button onclick="simpanMasuk()">Simpan Absen Masuk</button>
+  </div>
+
+  <h2>Form Absen Pulang</h2>
+  <div class="form-section">
+    <label>Tanggal:</label>
+    <input type="date" id="tanggalPulang" />
+    <label>Jam Pulang:</label>
+    <input type="time" id="jamPulang" />
+    <label>Foto Pulang:</label>
+    <input type="file" id="fotoPulang" accept="image/*" capture="environment" />
+    <label>Pilih Jenis Lembur:</label>
+    <select id="jenisLembur">
+      <option value="normal">Lembur Normal (setelah 9 jam)</option>
+      <option value="fullday">Lembur Full Day</option>
+    </select>
+    <button onclick="simpanPulang()">Simpan Absen Pulang</button>
+  </div>
+
+  <h2>Data Absensi</h2>
+  <div id="dataAbsensi"></div>
+
+  <div class="export-buttons">
+    <button onclick="exportExcel()">Export ke Excel</button>
+    <button onclick="exportPdf()">Export ke PDF</button>
+  </div>
+
+  <script>
+    let data = JSON.parse(localStorage.getItem("absensi")) || [];
+
+    function resizeImage(file, callback) {
+      const reader = new FileReader();
+      reader.onload = function (event) {
+        const img = new Image();
+        img.onload = function () {
+          const canvas = document.createElement("canvas");
+          const scale = 300 / img.height;
+          canvas.width = img.width * scale;
+          canvas.height = 300;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          callback(canvas.toDataURL("image/jpeg", 0.8));
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function tampilkanData() {
+      const container = document.getElementById("dataAbsensi");
+      container.innerHTML = "";
+      data.slice().reverse().forEach((item, i) => {
+        const realIndex = data.length - 1 - i;
+        container.innerHTML += `
+          <div class="absen-card">
+            <strong>${item.tanggal}</strong><br/>
+            Jam Masuk: ${item.jamMasuk}<br/>
+            <img src="${item.fotoMasuk}" /><br/>
+            Jam Pulang: ${item.jamPulang || "-"}<br/>
+            ${item.fotoPulang ? `<img src="${item.fotoPulang}" />` : ""}<br/>
+            Lembur: ${item.lembur || "-"}<br/>
+            <button class="delete-btn" onclick="hapusData(${realIndex})">Hapus</button>
+          </div>
+        `;
+      });
+    }
+
+    function simpanMasuk() {
+      const tanggal = document.getElementById("tanggalMasuk").value;
+      const jam = document.getElementById("jamMasuk").value;
+      const fotoInput = document.getElementById("fotoMasuk");
+      if (!tanggal || !jam || !fotoInput.files.length) {
+        alert("Lengkapi semua data masuk!");
+        return;
+      }
+      resizeImage(fotoInput.files[0], (fotoMasuk) => {
+        data.push({ tanggal, jamMasuk: jam, fotoMasuk, jamPulang: "", fotoPulang: "", lembur: "" });
+        localStorage.setItem("absensi", JSON.stringify(data));
+        tampilkanData();
+        alert("Absen berhasil disimpan!");
+      });
+    }
+
+    function simpanPulang() {
+      const tanggal = document.getElementById("tanggalPulang").value;
+      const jam = document.getElementById("jamPulang").value;
+      const jenis = document.getElementById("jenisLembur").value;
+      const fotoInput = document.getElementById("fotoPulang");
+      const index = data.findIndex(item => item.tanggal === tanggal);
+      if (index === -1) {
+        alert("Data absen masuk tidak ditemukan.");
+        return;
+      }
+
+      const proses = (fotoPulang) => {
+        data[index].jamPulang = jam;
+        if (fotoPulang) data[index].fotoPulang = fotoPulang;
+
+        if (jenis === "fullday") {
+          data[index].lembur = "Full Day";
+        } else {
+          const masuk = new Date(`1970-01-01T${data[index].jamMasuk}`);
+          const pulang = new Date(`1970-01-01T${jam}`);
+          const selisih = (pulang - masuk) / 60000;
+          const lemburMenit = Math.max(0, selisih - 540);
+          const jamLembur = Math.floor(lemburMenit / 60);
+          const menitLembur = lemburMenit % 60;
+          data[index].lembur = `${jamLembur} jam ${menitLembur} menit`;
+        }
+
+        localStorage.setItem("absensi", JSON.stringify(data));
+        tampilkanData();
+        alert("Absen berhasil disimpan!");
+      };
+
+      if (fotoInput.files.length) {
+        resizeImage(fotoInput.files[0], proses);
+      } else {
+        proses(null);
+      }
+    }
+
+    function hapusData(index) {
+      if (confirm("Yakin ingin menghapus data tanggal ini?")) {
+        data.splice(index, 1);
+        localStorage.setItem("absensi", JSON.stringify(data));
+        tampilkanData();
+      }
+    }
+
+    function exportExcel() {
+      let csv = "Tanggal,Jam Masuk,Jam Pulang,Lembur\n";
+      data.forEach(item => {
+        csv += `${item.tanggal},${item.jamMasuk},${item.jamPulang},${item.lembur}\n`;
+      });
+      const blob = new Blob([csv], { type: "text/csv" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "data_absensi.csv";
+      a.click();
+    }
+
+    async function exportPdf() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      let y = 10;
+      doc.setFontSize(12);
+      data.forEach((item, i) => {
+        doc.text(`Tanggal: ${item.tanggal}`, 10, y);
+        y += 6;
+        doc.text(`Jam Masuk: ${item.jamMasuk}`, 10, y);
+        y += 6;
+        doc.text(`Jam Pulang: ${item.jamPulang || "-"}`, 10, y);
+        y += 6;
+        doc.text(`Lembur: ${item.lembur || "-"}`, 10, y);
+        y += 6;
+
+        if (item.fotoMasuk) {
+          doc.text("Foto Masuk:", 10, y);
+          y += 2;
+          doc.addImage(item.fotoMasuk, "JPEG", 10, y, 30, 30);
+          y += 32;
+        }
+
+        if (item.fotoPulang) {
+          doc.text("Foto Pulang:", 10, y);
+          y += 2;
+          doc.addImage(item.fotoPulang, "JPEG", 10, y, 30, 30);
+          y += 32;
+        }
+
+        y += 5;
+        if (y > 250) {
+          doc.addPage();
+          y = 10;
+        }
+      });
+
+      doc.save("data_absensi.pdf");
+    }
+
+    tampilkanData();
+  </script>
+</body>
+</html>
